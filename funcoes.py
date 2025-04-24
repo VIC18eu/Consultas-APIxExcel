@@ -7,12 +7,25 @@ import psutil
 from openpyxl import load_workbook
 from tqdm import tqdm
 
+def nome_primeira_variavel(endpoint):
+    response = requests.get(endpoint)
+    if response.status_code == 200:
+        dados = response.json()
+        if 'results' in dados and dados['results']:
+            primeiro_objeto = dados['results'][0]
+            primeira_chave = list(primeiro_objeto.keys())[0]
+            return primeira_chave
+        else:
+            print("Não há resultados na resposta.")
+    else:
+        print(f"Erro ao consultar API: {response.status_code}")
+
 def fechar_excel_consultas(ficheiro):
-    if not os.path.exists(ficheiro):
+    if not os.path.exists(f"{ficheiro}.xlsx"):
         return
 
     try:
-        os.rename(ficheiro, ficheiro)
+        os.rename(f"{ficheiro}.xlsx", f"{ficheiro}.xlsx")
     except PermissionError:
         print("⚙️ A fechar o consultas.xlsx...")
         for proc in psutil.process_iter(['name', 'cmdline']):
@@ -29,36 +42,38 @@ def fechar_excel_consultas(ficheiro):
 
 def atualizar_excel(endpoint, ficheiro):
 
-    if not os.path.exists(ficheiro):
+    if not os.path.exists(f"{ficheiro}.xlsx"):
         print("📄 Ficheiro não encontrado. A criar novo ficheiro...")
         criar_excel(endpoint, ficheiro)
         return
     
-    fechar_excel_consultas(ficheiro)
     results = []
 
     offset = 0
-
-    response = requests.get(endpoint + f"&offset={offset}")
-    data = response.json()
-    total_count = data['total_count']
-    results.extend(data['results'])
-    offset += 100
-
-    if total_count > 9900:
-        print("🏋️‍♂️ Demasiados para serem extraidos!")
-        time.sleep(0.5)
+    ordenador = nome_primeira_variavel(endpoint)
+    try:
+        response = requests.get(endpoint + f"&offset={offset}&order_by={ordenador} DESC")
+        data = response.json()
+        total_count = data['total_count']
+        results.extend(data['results'])
+        offset += 100
+    except:
+        print("❌ API não encontrada.")
+        time.sleep(1)
         return
+    
+    fechar_excel_consultas(ficheiro)
 
     with tqdm(total=total_count, desc="🔄 A descarregar dados", unit="registos") as pbar:
         pbar.update(len(data['results']))
         
-        while offset < total_count:
+        while offset < total_count and offset <= 9900:
             response = requests.get(endpoint + f"&offset={offset}")
             data = response.json()
             results.extend(data['results'])
             offset += 100
             pbar.update(len(data['results']))
+
     
     results_expandido = []
     for item in results:
@@ -84,26 +99,27 @@ def atualizar_excel(endpoint, ficheiro):
     os.startfile(f'.\{ficheiro}.xlsx')
 
 def criar_excel(endpoint, ficheiro):
-    fechar_excel_consultas(ficheiro)
     results = []
 
     offset = 0
-
-    response = requests.get(endpoint + f"&offset={offset}")
-    data = response.json()
-    total_count = data['total_count']
-    results.extend(data['results'])
-    offset += 100
-
-    if total_count > 9900:
-        print("🏋️‍♂️ Demasiados para serem extraidos!")
-        time.sleep(0.5)
+    ordenador = nome_primeira_variavel(endpoint)
+    try:
+        response = requests.get(endpoint + f"&offset={offset}&order_by={ordenador} DESC")
+        data = response.json()
+        total_count = data['total_count']
+        results.extend(data['results'])
+        offset += 100
+    except:
+        print("❌ API não encontrada.")
+        time.sleep(1)
         return
+
+    fechar_excel_consultas(ficheiro)
 
     with tqdm(total=total_count, desc="🔄 A descarregar dados", unit="registos") as pbar:
         pbar.update(len(data['results']))
         
-        while offset < total_count:
+        while offset < total_count and offset <= 9900:
             response = requests.get(endpoint + f"&offset={offset}")
             data = response.json()
             results.extend(data['results'])
